@@ -8,6 +8,17 @@ module Extension
     module SpecificationHandlers
       class CheckoutUiExtensionTest < MiniTest::Test
         include ExtensionTestHelpers
+        INVALID_L10N_FILENAMES = [
+          "fr-ca.json", # lowercase country code
+          "FR-CA.json", # uppercase language tag
+          "french.json", # language tag > 3 characters
+          "fr-CAD.json", # country code > 2 characters
+          "fr.defalt.json", # typo in default
+          "11-CA.json", # numbers in language tag
+          "fr-11.json", # numbers in country code
+          "fr.CA.json", # dot instead of dash
+          "fr_CA.json", # underscore instead of dash
+        ]
 
         def setup
           super
@@ -20,6 +31,11 @@ module Extension
 
           @identifier = "CHECKOUT_UI_EXTENSION"
           @checkout_ui_extension = specifications[@identifier]
+          @context.root = Dir.mktmpdir
+        end
+
+        def teardown
+          FileUtils.remove_dir(@context.root)
         end
 
         def test_create_uses_standard_argo_create_implementation
@@ -89,6 +105,102 @@ module Extension
 
           resource_url = @checkout_ui_extension.build_resource_url(context: @context, shop: shop)
           assert_nil resource_url
+        end
+
+        def test_l10n_files_encoded
+          en_content = '{"laugh": "lol"}'
+          fr_content = '{"laugh": "mdr"}'
+          write("locales/fr.default.json", fr_content)
+          write("locales/en.json", en_content)
+
+          expected = {
+            "localization" => {
+              "files" => {
+                "fr" => Base64.encode64(fr_content),
+                "en" => Base64.encode64(en_content),
+              },
+              "default_locale" => "fr"
+            },
+          }
+          assert_equal(expected, @checkout_ui_extension.config(@context))
+        end
+
+        def test_l10n_files_at_root_are_ignored
+          write("locales/fr.default.json", "{}")
+          write("wut.json", "{}")
+          config = @checkout_ui_extension.config(@context)
+          refute_includes(config["localization"]["files"], "wut")
+        end
+
+        def test_l10n_multiple_defaults
+          write("locales/fr.default.json", "{}")
+          write("locales/en.default.json", "{}")
+          assert_raises Extension::Errors::SingleDefaultLocaleError do
+            @checkout_ui_extension.config(@context)
+          end
+        end
+
+        def test_l10n_no_defaults
+          write("locales/fr.json", "{}")
+          assert_raises Extension::Errors::SingleDefaultLocaleError do
+            @checkout_ui_extension.config(@context)
+          end
+        end
+
+        def test_l10n_directory_name
+          write("invalid/fr.json", "{}")
+          assert_raises Extension::Errors::InvalidFilenameError do
+            @checkout_ui_extension.config(@context)
+          end
+        end
+
+        def test_l10n_file_extension
+          write("locales/fr.txt", "hello")
+          assert_raises Extension::Errors::InvalidFilenameError do
+            @checkout_ui_extension.config(@context)
+          end
+        end
+
+        def test_l10n_max_filesize
+          stub_const(CheckoutUiExtension, :L10N_SIZE_LIMIT, 50) do
+            write("locales/fr.json", "1" * 1000)
+            assert_raises Extension::Errors::FileTooLargeError do
+              @checkout_ui_extension.config(@context)
+            end
+          end
+        end
+
+        INVALID_L10N_FILENAMES.each do |filename|
+          define_method("test_l10n_filename_#{filename}") do
+            write("locales/fr.default.json", "{}")
+            write("locales/#{filename}", "{}")
+            assert_raises Extension::Errors::InvalidFilenameError do
+              @checkout_ui_extension.config(@context)
+            end
+          end
+        end
+
+        private
+
+        def write(filename, content, mode: "w", encoding: "utf-8")
+          filename = File.join(@context.root, filename)
+          FileUtils.mkdir_p(File.dirname(filename))
+          File.write(filename, content, mode: mode, encoding: encoding)
+        end
+
+        def stub_const(object, name, value)
+          original = object.const_get(name)
+          silent_const_set(object, name, value)
+          yield
+        ensure
+          silent_const_set(object, name, original)
+        end
+
+        def silent_const_set(object, name, value)
+          old_verbose = $VERBOSE
+          $VERBOSE = nil
+          object.const_set(name, value)
+          $VERBOSE = old_verbose
         end
       end
     end
