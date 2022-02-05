@@ -136,6 +136,7 @@ module ShopifyCLI
 
       def test_development
         mock_themes_json
+        ShopifyCLI::DB.stubs(:get).with(:development_theme_id).returns(3)
 
         theme = Theme.development(@ctx, root: @root)
 

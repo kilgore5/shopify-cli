@@ -3,6 +3,7 @@ require_relative "file"
 
 require "pathname"
 require "time"
+require 'pp'
 
 module ShopifyCLI
   module Theme
@@ -177,7 +178,12 @@ module ShopifyCLI
         end
 
         def development(ctx, root: nil)
-          find(ctx, root) { |attrs| attrs["role"] == "development" }
+          find(ctx, root) do |attrs|
+            puts "Theme.development"
+            puts ShopifyCLI::DB.get(:development_theme_id)
+            puts attrs
+            attrs["role"] == "development" && attrs["id"] == ShopifyCLI::DB.get(:development_theme_id)
+          end
         end
 
         # Finds a Theme by its identifier
@@ -196,6 +202,9 @@ module ShopifyCLI
 
         def find(ctx, root, &block)
           _status, body = fetch_themes(ctx)
+
+          # puts "find"
+          # pp body["themes"]
 
           body["themes"]
             .find(&block)
