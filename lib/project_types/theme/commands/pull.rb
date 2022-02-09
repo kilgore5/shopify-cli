@@ -3,6 +3,7 @@ require "shopify_cli/theme/theme"
 require "shopify_cli/theme/ignore_filter"
 require "shopify_cli/theme/include_filter"
 require "shopify_cli/theme/syncer"
+require "shopify_cli/theme/development_theme"
 
 module Theme
   class Command
@@ -74,7 +75,8 @@ module Theme
         end
 
         if development
-          return ShopifyCLI::Theme::Theme.development(@ctx, root: root)
+          # return ShopifyCLI::Theme::Theme.development(@ctx, root: root)
+          return ShopifyCLI::Theme::DevelopmentTheme.new(@ctx, root: root)
         end
 
         select_theme(root)
