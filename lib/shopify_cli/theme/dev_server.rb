@@ -28,7 +28,14 @@ module ShopifyCLI
 
         def start(ctx, root, host: "127.0.0.1", port: 9292, poll: false, mode: ReloadMode.default)
           @ctx = ctx
+
+          puts "dev server start"
           theme = DevelopmentTheme.find_or_create!(ctx, root: root)
+          # theme = DevelopmentTheme.new(ctx, root: root)
+          puts "have theme?"
+          puts theme.shop
+          puts theme.inspect
+
           ignore_filter = IgnoreFilter.from_path(root)
           @syncer = Syncer.new(ctx, theme: theme, ignore_filter: ignore_filter)
           watcher = Watcher.new(ctx, theme: theme, syncer: @syncer, ignore_filter: ignore_filter, poll: poll)
@@ -40,6 +47,9 @@ module ShopifyCLI
           @app = HotReload.new(ctx, @app, theme: theme, watcher: watcher, mode: mode, ignore_filter: ignore_filter)
           stopped = false
           address = "http://#{host}:#{port}"
+
+          puts "ensure exists"
+          # puts theme.ensure_exists!
 
           trap("INT") do
             stopped = true
@@ -80,6 +90,8 @@ module ShopifyCLI
 
         rescue ShopifyCLI::API::APIRequestForbiddenError,
                ShopifyCLI::API::APIRequestUnauthorizedError
+
+          theme = ShopifyCLI::Theme::Theme.new(@ctx)
           raise ShopifyCLI::Abort, @ctx.message("theme.serve.ensure_user", theme.shop)
         rescue Errno::EADDRINUSE
           error_message = @ctx.message("theme.serve.address_already_in_use", address)

@@ -27,6 +27,7 @@ module Theme
       end
 
       def call(args, _name)
+        puts "pull call"
         root = args.first || "."
         delete = !options.flags[:nodelete]
         theme = find_theme(root, **options.flags)
@@ -79,6 +80,14 @@ module Theme
         end
 
         select_theme(root)
+
+      rescue ShopifyCLI::API::APIRequestForbiddenError,
+               ShopifyCLI::API::APIRequestUnauthorizedError
+          puts "rescue..."
+
+          theme = ShopifyCLI::Theme::Theme.new(@ctx)
+          #raise ShopifyCLI::Abort, @ctx.message("theme.serve.ensure_user", theme.shop)
+          @ctx.abort("theme.serve.ensure_user", theme.shop)
       end
 
       def select_theme(root)
